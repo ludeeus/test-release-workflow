@@ -52,7 +52,7 @@ defaults:
 jobs:
   validate:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 5
     permissions: {}
     steps:
       # The "release" environment's deployment branch policy already
@@ -118,7 +118,7 @@ jobs:
 
   build:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 10
     needs: validate
     permissions:
       contents: read
@@ -170,7 +170,7 @@ jobs:
 
   attest:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 5
     needs: build
     permissions:
       id-token: write
@@ -188,7 +188,7 @@ jobs:
 
   verify:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 5
     needs: attest
     permissions:
       contents: read
@@ -213,7 +213,7 @@ jobs:
 
   draft:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 10
     needs: verify
     permissions:
       contents: write
@@ -290,7 +290,7 @@ jobs:
 
   publish:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 5
     needs: draft
     environment: release
     permissions:
@@ -308,7 +308,7 @@ jobs:
 
   cleanup:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 5
     needs: [draft, publish]
     if: needs.draft.result != 'skipped' && (failure() || cancelled())
     permissions:
