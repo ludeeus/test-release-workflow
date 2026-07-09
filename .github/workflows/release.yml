@@ -8,7 +8,7 @@
 #   2. Environment "release" with required reviewers
 #      (Settings > Environments)
 #   3. Deployment branch policy on the "release" environment
-#      restricted to "main"
+#      restricted to "main" and "release/*"
 #   4. Artifact attestations require a public repo or GitHub
 #      Enterprise Cloud
 #
@@ -59,12 +59,12 @@ jobs:
       # blocks publishing from other branches, but only at the final
       # approval gate. Fail fast instead of burning a full
       # build/attest/draft cycle on a dispatch that can never publish.
-      - name: Ensure release is dispatched from main
-        if: github.ref != 'refs/heads/main'
+      - name: Ensure release is dispatched from main or a release branch
+        if: github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/heads/release/')
         env:
           REF: ${{ github.ref }}
         run: |
-          echo "Releases must be dispatched from main, not '$REF'" >&2
+          echo "Releases must be dispatched from main or release/*, not '$REF'" >&2
           exit 1
 
       - name: Setup Python
@@ -84,8 +84,10 @@ jobs:
         env:
           TAG: ${{ inputs.tag }}
           PRERELEASE: ${{ inputs.prerelease }}
+          REF: ${{ github.ref }}
         run: |
           import os
+          import re
           import sys
 
           from awesomeversion import AwesomeVersion, AwesomeVersionStrategy
@@ -113,6 +115,18 @@ jobs:
               sys.exit(f"'{tag}' is a pre-release version, but the prerelease input is not set")
           if want_prerelease and not is_prerelease:
               sys.exit(f"The prerelease input is set, but '{tag}' is not a pre-release version")
+
+          # A maintenance branch may only release tags from its own
+          # series: release/1.2.x accepts 1.2.*, nothing else.
+          ref = os.environ["REF"]
+          if ref.startswith("refs/heads/release/"):
+              branch = ref.removeprefix("refs/heads/release/")
+              series_match = re.fullmatch(r"v?(\d+(?:\.\d+)*)(?:\.x)?", branch)
+              if series_match is None:
+                  sys.exit(f"Release branch 'release/{branch}' does not follow the '<major>.<minor>.x' naming convention")
+              series = series_match.group(1)
+              if not f"{tag}.".startswith(f"{series}."):
+                  sys.exit(f"Tag '{tag}' is not part of the '{series}' series released from 'release/{branch}'")
 
           print(f"Tag '{tag}' is valid ({version.strategy}, prerelease={is_prerelease})")
 
@@ -268,10 +282,16 @@ jobs:
           PRERELEASE: ${{ inputs.prerelease }}
           REPO: ${{ github.repository }}
           TARGET_SHA: ${{ github.sha }}
+          REF: ${{ github.ref }}
         run: |
           args=(--repo "$REPO" --target "$TARGET_SHA" --generate-notes --draft)
           if [ "$PRERELEASE" = "true" ]; then
             args+=(--prerelease)
+          fi
+          # A patch release from a maintenance branch must not repoint
+          # "latest" (and /releases/latest) away from the newest series.
+          if [ "$REF" != "refs/heads/main" ]; then
+            args+=(--latest=false)
           fi
           gh release create "$TAG" "${args[@]}"
 
@@ -301,10 +321,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
           REPO: ${{ github.repository }}
+          REF: ${{ github.ref }}
         run: |
-          gh release edit "$TAG" \
-            --repo "$REPO" \
-            --draft=false
+          # Repeat --latest=false at publish: the "make latest" directive
+          # is applied when a release goes live, not when the draft was
+          # created, so relying on the draft's setting is not enough.
+          args=(--repo "$REPO" --draft=false)
+          if [ "$REF" != "refs/heads/main" ]; then
+            args+=(--latest=false)
+          fi
+          gh release edit "$TAG" "${args[@]}"
 
   cleanup:
     runs-on: ubuntu-24.04
