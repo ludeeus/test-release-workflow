@@ -12,8 +12,9 @@
 #   4. Artifact attestations require a public repo or GitHub
 #      Enterprise Cloud
 #
-# Runner note: ubuntu-24.04 is pinned deliberately and is not managed
-# by Renovate. Bump it manually when GitHub announces deprecation.
+# Runner note: ubuntu-24.04 is pinned deliberately. Renovate updates
+# the runs-on pins via the github-runners datasource; do not replace
+# them with ubuntu-latest, which Renovate cannot manage.
 
 name: Release
 
