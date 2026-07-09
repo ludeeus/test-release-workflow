@@ -41,6 +41,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  DEFAULT_RELEASE_BRANCH: main
   ARTIFACT_NAME: release-asset.zip
   # renovate: datasource=pypi depName=awesomeversion
   AWESOMEVERSION_VERSION: "25.8.0"
@@ -59,12 +60,12 @@ jobs:
       # blocks publishing from other branches, but only at the final
       # approval gate. Fail fast instead of burning a full
       # build/attest/draft cycle on a dispatch that can never publish.
-      - name: Ensure release is dispatched from main or a release branch
-        if: github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/heads/release/')
+      - name: Ensure release is dispatched from the default branch or a release branch
+        if: github.ref != format('refs/heads/{0}', env.DEFAULT_RELEASE_BRANCH) && !startsWith(github.ref, 'refs/heads/release/')
         env:
           REF: ${{ github.ref }}
         run: |
-          echo "Releases must be dispatched from main or release/*, not '$REF'" >&2
+          echo "Releases must be dispatched from $DEFAULT_RELEASE_BRANCH or release/*, not '$REF'" >&2
           exit 1
 
       - name: Setup Python
@@ -290,7 +291,7 @@ jobs:
           fi
           # A patch release from a maintenance branch must not repoint
           # "latest" (and /releases/latest) away from the newest series.
-          if [ "$REF" != "refs/heads/main" ]; then
+          if [ "$REF" != "refs/heads/${DEFAULT_RELEASE_BRANCH}" ]; then
             args+=(--latest=false)
           fi
           gh release create "$TAG" "${args[@]}"
@@ -327,7 +328,7 @@ jobs:
           # is applied when a release goes live, not when the draft was
           # created, so relying on the draft's setting is not enough.
           args=(--repo "$REPO" --draft=false)
-          if [ "$REF" != "refs/heads/main" ]; then
+          if [ "$REF" != "refs/heads/${DEFAULT_RELEASE_BRANCH}" ]; then
             args+=(--latest=false)
           fi
           gh release edit "$TAG" "${args[@]}"
