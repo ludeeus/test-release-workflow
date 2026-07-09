@@ -8,7 +8,8 @@
 #   2. Environment "release" with required reviewers
 #      (Settings > Environments)
 #   3. Deployment branch policy on the "release" environment
-#      restricted to "main" and "release/*"
+#      restricted to "main" and "release/*" (keep in sync with
+#      DEFAULT_RELEASE_BRANCH and HOTFIX_BRANCH_PREFIX below)
 #   4. Artifact attestations require a public repo or GitHub
 #      Enterprise Cloud
 #
@@ -42,6 +43,7 @@ concurrency:
 
 env:
   DEFAULT_RELEASE_BRANCH: main
+  HOTFIX_BRANCH_PREFIX: release/
   ARTIFACT_NAME: release-asset.zip
   # renovate: datasource=pypi depName=awesomeversion
   AWESOMEVERSION_VERSION: "25.8.0"
@@ -61,11 +63,11 @@ jobs:
       # approval gate. Fail fast instead of burning a full
       # build/attest/draft cycle on a dispatch that can never publish.
       - name: Ensure release is dispatched from the default branch or a release branch
-        if: github.ref != format('refs/heads/{0}', env.DEFAULT_RELEASE_BRANCH) && !startsWith(github.ref, 'refs/heads/release/')
+        if: github.ref != format('refs/heads/{0}', env.DEFAULT_RELEASE_BRANCH) && !startsWith(github.ref, format('refs/heads/{0}', env.HOTFIX_BRANCH_PREFIX))
         env:
           REF: ${{ github.ref }}
         run: |
-          echo "Releases must be dispatched from $DEFAULT_RELEASE_BRANCH or release/*, not '$REF'" >&2
+          echo "Releases must be dispatched from $DEFAULT_RELEASE_BRANCH or ${HOTFIX_BRANCH_PREFIX}*, not '$REF'" >&2
           exit 1
 
       - name: Setup Python
@@ -120,14 +122,15 @@ jobs:
           # A maintenance branch may only release tags from its own
           # series: release/1.2.x accepts 1.2.*, nothing else.
           ref = os.environ["REF"]
-          if ref.startswith("refs/heads/release/"):
-              branch = ref.removeprefix("refs/heads/release/")
-              series_match = re.fullmatch(r"v?(\d+(?:\.\d+)*)(?:\.x)?", branch)
+          hotfix_prefix = os.environ["HOTFIX_BRANCH_PREFIX"]
+          if ref.startswith(f"refs/heads/{hotfix_prefix}"):
+              branch = ref.removeprefix("refs/heads/")
+              series_match = re.fullmatch(r"v?(\d+(?:\.\d+)*)(?:\.x)?", branch.removeprefix(hotfix_prefix))
               if series_match is None:
-                  sys.exit(f"Release branch 'release/{branch}' does not follow the '<major>.<minor>.x' naming convention")
+                  sys.exit(f"Release branch '{branch}' does not follow the '{hotfix_prefix}<major>.<minor>.x' naming convention")
               series = series_match.group(1)
               if not f"{tag}.".startswith(f"{series}."):
-                  sys.exit(f"Tag '{tag}' is not part of the '{series}' series released from 'release/{branch}'")
+                  sys.exit(f"Tag '{tag}' is not part of the '{series}' series released from '{branch}'")
 
           print(f"Tag '{tag}' is valid ({version.strategy}, prerelease={is_prerelease})")
 
