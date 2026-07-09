@@ -1,5 +1,9 @@
 # Release workflow.
 #
+# Do not copy this file blindly. It is designed to be adaptable, not
+# dropped in as-is: take the parts you need and adjust them for your
+# own project, its build, and its conventions.
+#
 # This file depends on repository configuration that is not visible here.
 # If this workflow is copied, forked, or migrated, re-apply all of these:
 #
